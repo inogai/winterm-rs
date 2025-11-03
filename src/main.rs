@@ -7,12 +7,16 @@ use crossterm::{
     terminal::{Clear, ClearType},
 };
 use entity::Entity;
+use rand::Rng;
 use snowball::Snowball;
 use std::{
     io::{Write, stdout},
     thread,
     time::Duration,
 };
+
+const SNOWBALL_CHANCE: f64 = 0.3; // Percentage chance to spawn a snowball each frame
+const SNOWBALL_CLUSTER_SIZE: u16 = 3;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut stdout = stdout();
@@ -26,10 +30,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut objects: Vec<Box<dyn Entity>> = Vec::new();
     let mut frame_count = 0;
 
+    let mut rng = rand::thread_rng();
+
     loop {
-        // Spawn new snowballs occasionally
-        if frame_count % 5 == 0 {
-            objects.push(Box::new(Snowball::new(width)));
+        if rng.gen_bool(SNOWBALL_CHANCE) {
+            let count = rng.gen_range(1..=SNOWBALL_CLUSTER_SIZE);
+
+            for _ in 0..count {
+                objects.push(Box::new(Snowball::new(width)));
+            }
         }
 
         // Update objects
