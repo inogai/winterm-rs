@@ -50,25 +50,28 @@ fn duration_parser(s: &str) -> Result<Duration, String> {
     Ok(Duration::from_millis(total_ms))
 }
 
-#[derive(Parser)]
+#[derive(Parser, bevy::prelude::Resource)]
 #[command(author, version, about, long_about = None)]
 pub struct Args {
-    #[arg(long, short = 'r', default_value_t = 0.3)]
-    pub snowball_chance: f64,
+    #[arg(long, short = 'p', default_value_t = 0.3)]
+    pub spawn_chance: f32,
 
-    #[arg(long, short = 's', default_value_t = 3)]
-    pub snowball_cluster_size: u16,
+    #[arg(long, short = 'm', default_value_t = 0.0)]
+    pub snowball_mean: f64,
 
-    #[arg(long, short = 'v', default_value_t = 0.5)]
-    // rows per frame
+    #[arg(long, short = 't', default_value_t = 2.0)]
+    pub snowball_std: f64,
+
+    #[arg(long, short = 'v', default_value_t = 5.0)]
+    /// rows per s
     pub snowball_speed: f32,
 
     #[arg(long, short = 'd', value_parser=duration_parser, default_value="1d")]
     pub duration: Duration,
 
-    #[arg(long, short = 'f', default_value_t = 60.0)]
-    pub fps: f64,
-
-    #[arg(long, short = 'i', value_parser=duration_parser, default_value="16ms")]
+    #[arg(long, short = 'i', value_parser=duration_parser, default_value="200ms")]
     pub spawn_interval: Duration,
+    
+    #[arg(long, short = 'f', default_value_t = 30.0)]
+    pub fps: f32,
 }

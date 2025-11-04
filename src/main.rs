@@ -1,42 +1,93 @@
 mod args;
-mod entity;
 mod game;
-mod snowball;
 
 use args::Args;
+use bevy::app::{App, AppExit};
 use clap::Parser;
 use crossterm::{
     cursor::{Hide, Show},
+    event::{self, Event, KeyCode, KeyModifiers},
     execute,
+    terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType},
 };
-use game::Game;
-use std::{io::stdout, time::Duration};
+use std::{io::{Write, stdout}, num::NonZero};
+use std::time::{Duration, Instant};
+
+use crate::game::GameConfig;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut stdout = stdout();
 
-    // Hide cursor
-    execute!(stdout, Hide)?;
+    // Parse command line arguments
+    let args = Args::parse();
 
     // Get terminal size
     let (width, height) = crossterm::terminal::size()?;
 
-    let args = Args::parse();
+    // Enable raw mode and hide cursor
+    enable_raw_mode()?;
+    execute!(stdout, Hide)?;
 
-    let mut game = Game::new(
-        width,
-        height,
-        args.snowball_chance,
-        args.snowball_cluster_size,
-        args.snowball_speed,
-        args.duration,
-        Duration::from_millis((1000.0 / args.fps) as u64),
-        args.spawn_interval,
-    );
-    game.run(&mut stdout)?;
+    // Store configuration for the runner
+    let duration = args.duration;
+    let frame_delay = Duration::from_millis((1000.0 / args.fps) as u64);
+    
+    
 
-    // Show cursor again
+    // Create the Bevy app with all systems
+    let mut app = game::create_app(GameConfig::new(args, width, height));
+
+    // Set custom runner that manages the terminal refresh
+    app.set_runner(move |mut app: App| {
+        let mut term_stdout = std::io::stdout();
+        let start_time = Instant::now();
+        
+        loop {
+            let frame_start = Instant::now();
+            
+            // Check for keyboard input (Ctrl-C, q, or Esc to exit)
+            if event::poll(Duration::from_millis(0)).unwrap_or(false) {
+                if let Ok(Event::Key(key_event)) = event::read() {
+                    match key_event.code {
+                        KeyCode::Char('c') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
+                            break AppExit::Error(NonZero::new(1).unwrap());
+                        }
+                        KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => {
+                            break AppExit::Error(NonZero::new(1).unwrap());
+                        }
+                        _ => {}
+                    }
+                }
+            }
+
+            // Clear screen
+            let _ = execute!(term_stdout, Clear(ClearType::All));
+
+            // Run Bevy update to execute all systems
+            app.update();
+
+            // Flush output
+            let _ = term_stdout.flush();
+
+            // Frame pacing - sleep for remaining time to maintain consistent frame rate
+            let frame_time = frame_start.elapsed();
+            if frame_time < frame_delay {
+                std::thread::sleep(frame_delay - frame_time);
+            }
+            
+            // Exit after duration
+            if start_time.elapsed() >= duration {
+                break AppExit::Success
+            }
+        }
+    });
+
+    // Run the app with custom runner
+    app.run();
+
+    // Cleanup: Show cursor and disable raw mode
     execute!(stdout, Show)?;
+    disable_raw_mode()?;
 
     Ok(())
 }

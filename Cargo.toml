@@ -8,3 +8,11 @@ license = "MIT"
 clap = { version = "4.5.51", features = ["derive"] }
 crossterm = "0.29"
 rand = "0.9.2"
+rand_distr = "0.5.1"
+
+[dependencies.bevy]
+version = "0.17.2"
+default-features = false
+features = [
+  "std",            # Use the Rust standard library (important!)
+]

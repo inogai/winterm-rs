@@ -1,110 +1,115 @@
-use crate::entity::Entity;
-use crate::snowball::Snowball;
-use crossterm::{
-    execute,
-    terminal::{Clear, ClearType},
-};
-use rand::Rng;
-use std::{
-    io::Write,
-    thread,
-    time::{Duration, Instant},
-};
+use bevy::prelude::*;
+use crossterm::execute;
+use rand::{Rng, SeedableRng};
+use rand_distr::{Distribution, Normal};
+use std::time::Duration;
 
-pub struct Game {
-    pub objects: Vec<Box<dyn Entity>>,
-    rng: rand::rngs::ThreadRng,
-    start_time: Instant,
+use crate::args::Args;
+
+#[derive(Clone, Copy, Component)]
+pub struct Position(pub Vec2);
+
+#[derive(Clone, Copy, Component)]
+pub struct Velocity(pub Vec2);
+
+#[derive(Component)]
+pub struct Text(pub String);
+
+#[derive(Resource)]
+pub struct GameConfig {
     pub width: u16,
     pub height: u16,
-    snowball_chance: f64,
-    snowball_cluster_size: u16,
+    pub snowball_mean: f64,
+    pub snowball_std: f64,
     pub snowball_speed: f32,
-    duration: Duration,
-    frame_delay: Duration,
-    spawn_interval: Duration,
-    last_spawn_time: Instant,
+    pub spawn_interval: Duration,
+    pub last_spawn_time: Duration,
 }
 
-impl Game {
-    pub fn new(
-        width: u16,
-        height: u16,
-        snowball_chance: f64,
-        snowball_cluster_size: u16,
-        snowball_speed: f32,
-        duration: Duration,
-        frame_delay_ms: Duration,
-        spawn_interval: Duration,
-    ) -> Self {
-        Self {
-            objects: Vec::new(),
-            rng: rand::rng(),
-            start_time: Instant::now(),
+impl GameConfig {
+    pub fn new(args: Args, width: u16, height: u16) -> Self {
+        GameConfig {
             width,
             height,
-            snowball_chance,
-            snowball_cluster_size,
-            snowball_speed,
-            duration,
-            frame_delay: frame_delay_ms,
-            spawn_interval,
-            last_spawn_time: Instant::now(),
+            snowball_mean: args.snowball_mean,
+            snowball_std: args.snowball_std,
+            snowball_speed: args.snowball_speed,
+            spawn_interval: args.spawn_interval,
+            last_spawn_time: Duration::ZERO,
         }
     }
+}
 
-    fn spawn_snowballs(&mut self) {
-        if self.rng.random_bool(self.snowball_chance) {
-            let count = self.rng.random_range(1..=self.snowball_cluster_size);
-            for _ in 0..count {
-                self.objects
-                    .push(Box::new(Snowball::new(self.width, self.snowball_speed)));
-            }
+#[derive(Resource)]
+pub struct StdoutResource(pub std::io::Stdout);
+
+#[derive(Resource)]
+pub struct RngResource(pub rand::rngs::StdRng);
+
+fn spawn_snowballs(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut config: ResMut<GameConfig>,
+    mut rng: ResMut<RngResource>,
+) {
+    if time.elapsed() - config.last_spawn_time >= config.spawn_interval {
+        let normal = Normal::new(config.snowball_mean, config.snowball_std).unwrap();
+        let count = (normal.sample(&mut rng.0).round() as i32).max(1) as usize;
+        for _ in 0..count {
+            let x = rng.0.random_range(0.0..config.width as f32);
+            commands.spawn((
+                Position(Vec2::new(x, 0.0)),
+                Velocity(Vec2::new(0.0, config.snowball_speed)),
+                Text("●".to_string()),
+            ));
+        }
+        config.last_spawn_time = time.elapsed();
+    }
+}
+
+fn update_positions(mut query: Query<(&mut Position, &Velocity)>, time: Res<Time>) {
+    let delta = time.delta_secs();
+    for (mut pos, vel) in query.iter_mut() {
+        pos.0 += vel.0 * delta;
+    }
+}
+
+fn remove_off_screen(
+    mut commands: Commands,
+    query: Query<(Entity, &Position)>,
+    config: Res<GameConfig>,
+) {
+    for (entity, pos) in query.iter() {
+        if pos.0.y > config.height as f32 {
+            commands.entity(entity).despawn();
         }
     }
+}
 
-    fn update_objects(&mut self) {
-        for obj in &mut self.objects {
-            obj.update();
-        }
+fn render_system(query: Query<(&Position, &Text)>, mut stdout: ResMut<StdoutResource>) {
+    for (pos, text) in query.iter() {
+        let x = pos.0.x as u16;
+        let y = pos.0.y as u16;
+        let _ = execute!(
+            stdout.0,
+            crossterm::cursor::MoveTo(x, y),
+            crossterm::style::Print(&text.0)
+        );
     }
+}
 
-    fn remove_off_screen_objects(&mut self) {
-        self.objects.retain(|obj| !obj.is_off_screen(self.height));
-    }
+pub fn create_app(config: GameConfig) -> App {
+    let mut app = App::new();
 
-    fn render(&self, stdout: &mut std::io::Stdout) -> Result<(), Box<dyn std::error::Error>> {
-        for obj in &self.objects {
-            obj.render(stdout)?;
-        }
-        Ok(())
-    }
+    // Add minimal Bevy plugins needed for Time and basic ECS functionality
+    app.add_plugins(bevy::time::TimePlugin)
+        .insert_resource(config)
+        .insert_resource(StdoutResource(std::io::stdout()))
+        .insert_resource(RngResource(rand::rngs::StdRng::from_os_rng()))
+        .add_systems(Update, spawn_snowballs)
+        .add_systems(Update, update_positions)
+        .add_systems(Update, remove_off_screen)
+        .add_systems(Update, render_system);
 
-    pub fn run(&mut self, stdout: &mut std::io::Stdout) -> Result<(), Box<dyn std::error::Error>> {
-        loop {
-            if self.last_spawn_time.elapsed() >= self.spawn_interval {
-                self.spawn_snowballs();
-                self.last_spawn_time = Instant::now();
-            }
-            self.update_objects();
-            self.remove_off_screen_objects();
-
-            // Clear screen
-            execute!(stdout, Clear(ClearType::All))?;
-
-            self.render(stdout)?;
-
-            // Flush output
-            stdout.flush()?;
-
-            // Sleep for animation
-            thread::sleep(self.frame_delay);
-
-            // Exit after some time (optional)
-            if self.start_time.elapsed() >= self.duration {
-                break;
-            }
-        }
-        Ok(())
-    }
+    app
 }
