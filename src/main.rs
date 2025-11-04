@@ -1,6 +1,7 @@
 mod entity;
 mod snowball;
 
+use clap::Parser;
 use crossterm::{
     cursor::{Hide, Show},
     execute,
@@ -15,10 +16,21 @@ use std::{
     time::Duration,
 };
 
-const SNOWBALL_CHANCE: f64 = 0.3; // Percentage chance to spawn a snowball each frame
-const SNOWBALL_CLUSTER_SIZE: u16 = 3;
-const MAX_FRAMES: u32 = 1000;
-const FRAME_DELAY_MS: u64 = 100;
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    #[arg(long, short = 'r', default_value_t = 0.3)]
+    snowball_chance: f64,
+
+    #[arg(long, short = 's', default_value_t = 3)]
+    snowball_cluster_size: u16,
+
+    #[arg(long, short = 't', default_value_t = 1000)]
+    max_frames: u32,
+
+    #[arg(long, short = 'f', default_value_t = 100)]
+    frame_delay_ms: u64,
+}
 
 struct Game {
     objects: Vec<Box<dyn Entity>>,
@@ -26,22 +38,37 @@ struct Game {
     frame_count: u32,
     width: u16,
     height: u16,
+    snowball_chance: f64,
+    snowball_cluster_size: u16,
+    max_frames: u32,
+    frame_delay_ms: u64,
 }
 
 impl Game {
-    fn new(width: u16, height: u16) -> Self {
+    fn new(
+        width: u16,
+        height: u16,
+        snowball_chance: f64,
+        snowball_cluster_size: u16,
+        max_frames: u32,
+        frame_delay_ms: u64,
+    ) -> Self {
         Self {
             objects: Vec::new(),
             rng: rand::thread_rng(),
             frame_count: 0,
             width,
             height,
+            snowball_chance,
+            snowball_cluster_size,
+            max_frames,
+            frame_delay_ms,
         }
     }
 
     fn spawn_snowballs(&mut self) {
-        if self.rng.gen_bool(SNOWBALL_CHANCE) {
-            let count = self.rng.gen_range(1..=SNOWBALL_CLUSTER_SIZE);
+        if self.rng.gen_bool(self.snowball_chance) {
+            let count = self.rng.gen_range(1..=self.snowball_cluster_size);
             for _ in 0..count {
                 self.objects.push(Box::new(Snowball::new(self.width)));
             }
@@ -80,12 +107,12 @@ impl Game {
             stdout.flush()?;
 
             // Sleep for animation
-            thread::sleep(Duration::from_millis(FRAME_DELAY_MS));
+            thread::sleep(Duration::from_millis(self.frame_delay_ms));
 
             self.frame_count += 1;
 
             // Exit after some time (optional)
-            if self.frame_count >= MAX_FRAMES {
+            if self.frame_count >= self.max_frames {
                 break;
             }
         }
@@ -102,7 +129,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Get terminal size
     let (width, height) = crossterm::terminal::size()?;
 
-    let mut game = Game::new(width, height);
+    let args = Args::parse();
+
+    let mut game = Game::new(
+        width,
+        height,
+        args.snowball_chance,
+        args.snowball_cluster_size,
+        args.max_frames,
+        args.frame_delay_ms,
+    );
     game.run(&mut stdout)?;
 
     // Show cursor again
