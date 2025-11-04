@@ -79,6 +79,9 @@ struct Args {
 
     #[arg(long, short = 'f', default_value_t = 60.0)]
     fps: f64,
+
+    #[arg(long, short = 'i', value_parser=duration_parser, default_value="16ms")]
+    spawn_interval: Duration,
 }
 
 struct Game {
@@ -91,6 +94,8 @@ struct Game {
     snowball_cluster_size: u16,
     duration: Duration,
     frame_delay: Duration,
+    spawn_interval: Duration,
+    last_spawn_time: Instant,
 }
 
 impl Game {
@@ -101,6 +106,7 @@ impl Game {
         snowball_cluster_size: u16,
         duration: Duration,
         frame_delay_ms: Duration,
+        spawn_interval: Duration,
     ) -> Self {
         Self {
             objects: Vec::new(),
@@ -112,6 +118,8 @@ impl Game {
             snowball_cluster_size,
             duration,
             frame_delay: frame_delay_ms,
+            spawn_interval,
+            last_spawn_time: Instant::now(),
         }
     }
 
@@ -143,7 +151,10 @@ impl Game {
 
     fn run(&mut self, stdout: &mut std::io::Stdout) -> Result<(), Box<dyn std::error::Error>> {
         loop {
-            self.spawn_snowballs();
+            if self.last_spawn_time.elapsed() >= self.spawn_interval {
+                self.spawn_snowballs();
+                self.last_spawn_time = Instant::now();
+            }
             self.update_objects();
             self.remove_off_screen_objects();
 
@@ -185,6 +196,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         args.snowball_cluster_size,
         args.duration,
         Duration::from_millis((1000.0 / args.fps) as u64),
+        args.spawn_interval,
     );
     game.run(&mut stdout)?;
 
