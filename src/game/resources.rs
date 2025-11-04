@@ -8,8 +8,7 @@ use crate::args::Args;
 pub struct GameConfig {
     pub width: u16,
     pub height: u16,
-    pub snowball_mean: f64,
-    pub snowball_std: f64,
+    pub snowball_chance: f64,
     pub snowball_speed: f32,
     pub spawn_interval: Duration,
     pub last_spawn_time: Duration,
@@ -20,8 +19,7 @@ impl GameConfig {
         GameConfig {
             width,
             height,
-            snowball_mean: args.snowball_mean,
-            snowball_std: args.snowball_std,
+            snowball_chance: args.snowball_chance,
             snowball_speed: args.snowball_speed,
             spawn_interval: args.spawn_interval,
             last_spawn_time: Duration::ZERO,

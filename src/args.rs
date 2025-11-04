@@ -64,13 +64,9 @@ fn duration_parser(s: &str) -> Result<Duration, String> {
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 pub struct Args {
-    #[arg(long, short = 'm', default_value_t = 0.0)]
-    /// Mean number of snowballs to spawn per interval (normal distribution)
-    pub snowball_mean: f64,
-
-    #[arg(long, short = 't', default_value_t = 2.0)]
-    /// Standard deviation for snowball spawn count (normal distribution)
-    pub snowball_std: f64,
+    #[arg(long, short = 'm', default_value_t = 0.01)]
+    /// Probability that each column spawns a snowball per interval
+    pub snowball_chance: f64,
 
     #[arg(long, short = 'v', default_value_t = 2.0)]
     /// Snowball fall speed in rows per second

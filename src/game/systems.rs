@@ -1,12 +1,12 @@
 use bevy::prelude::*;
 use crossterm::execute;
 use rand::Rng;
-use rand_distr::{Distribution, Normal};
 
 use super::components::{Position, SnowballBundle, Text, Velocity};
 use super::resources::{GameConfig, RngResource, StdoutResource};
 
 /// System to spawn snowballs at regular intervals
+/// Each column has an independent chance to spawn a single snowball
 pub fn spawn_snowballs(
     mut commands: Commands,
     time: Res<Time>,
@@ -14,12 +14,14 @@ pub fn spawn_snowballs(
     mut rng: ResMut<RngResource>,
 ) {
     if time.elapsed() - config.last_spawn_time >= config.spawn_interval {
-        let normal = Normal::new(config.snowball_mean, config.snowball_std).unwrap();
-        let count = (normal.sample(&mut rng.0).round() as i32).max(1) as usize;
-
-        for _ in 0..count {
-            let x = rng.0.random_range(0.0..config.width as f32);
-            commands.spawn(SnowballBundle::new(x, config.snowball_speed));
+        // Iterate through each column
+        for col in 0..config.width {
+            // Check if this column should spawn a snowball
+            if rng.0.random::<f64>() < config.snowball_chance {
+                // Spawn a single snowball at this column with slight random offset
+                let x = col as f32 + rng.0.random_range(-0.5..0.5);
+                commands.spawn(SnowballBundle::new(x, config.snowball_speed));
+            }
         }
 
         config.last_spawn_time = time.elapsed();
