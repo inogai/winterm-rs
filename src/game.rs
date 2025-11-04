@@ -37,7 +37,7 @@ impl Game {
     ) -> Self {
         Self {
             objects: Vec::new(),
-            rng: rand::thread_rng(),
+            rng: rand::rng(),
             start_time: Instant::now(),
             width,
             height,
@@ -51,8 +51,8 @@ impl Game {
     }
 
     fn spawn_snowballs(&mut self) {
-        if self.rng.gen_bool(self.snowball_chance) {
-            let count = self.rng.gen_range(1..=self.snowball_cluster_size);
+        if self.rng.random_bool(self.snowball_chance) {
+            let count = self.rng.random_range(1..=self.snowball_cluster_size);
             for _ in 0..count {
                 self.objects.push(Box::new(Snowball::new(self.width)));
             }

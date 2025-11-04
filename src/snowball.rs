@@ -10,11 +10,11 @@ pub struct Snowball {
 
 impl Snowball {
     pub fn new(width: u16) -> Self {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         Snowball {
-            x: rng.gen_range(0.0..width as f32),
+            x: rng.random_range(0.0..width as f32),
             y: 0.0,
-            speed: rng.gen_range(0.5..2.0),
+            speed: rng.random_range(0.5..2.0),
         }
     }
 }
