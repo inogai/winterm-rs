@@ -13,8 +13,57 @@ use snowball::Snowball;
 use std::{
     io::{Write, stdout},
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
+
+fn duration_parser(s: &str) -> Result<Duration, String> {
+    let mut total_ms = 0u64;
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.peek() {
+        if c.is_whitespace() {
+            chars.next();
+            continue;
+        }
+        if c.is_numeric() {
+            let mut num_str = String::new();
+            while let Some(&ch) = chars.peek() {
+                if ch.is_ascii_digit() {
+                    num_str.push(ch);
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+            let num: u64 = num_str
+                .parse()
+                .map_err(|_| format!("Invalid number: {}", num_str))?;
+            let mut unit = String::new();
+            while let Some(&ch) = chars.peek() {
+                if ch.is_alphabetic() {
+                    unit.push(ch);
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+            let multiplier = match unit.as_str() {
+                "" => 1000, // Default to seconds if no unit
+                "d" => 24 * 60 * 60 * 1000,
+                "h" => 60 * 60 * 1000,
+                "min" => 60 * 1000,
+                "s" => 1000,
+                "ms" => 1,
+                _ => return Err(format!("Unknown unit: {}", unit)),
+            };
+            total_ms = total_ms
+                .checked_add(num.checked_mul(multiplier).ok_or("Overflow")?)
+                .ok_or("Overflow")?;
+        } else {
+            return Err("Unexpected character".to_string());
+        }
+    }
+    Ok(Duration::from_millis(total_ms))
+}
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -25,23 +74,23 @@ struct Args {
     #[arg(long, short = 's', default_value_t = 3)]
     snowball_cluster_size: u16,
 
-    #[arg(long, short = 't', default_value_t = 1000)]
-    max_frames: u32,
+    #[arg(long, short = 'd', value_parser=duration_parser, default_value="1d")]
+    duration: Duration,
 
-    #[arg(long, short = 'f', default_value_t = 100)]
-    frame_delay_ms: u64,
+    #[arg(long, short = 'f', default_value_t = 60.0)]
+    fps: f64,
 }
 
 struct Game {
     objects: Vec<Box<dyn Entity>>,
     rng: rand::rngs::ThreadRng,
-    frame_count: u32,
+    start_time: Instant,
     width: u16,
     height: u16,
     snowball_chance: f64,
     snowball_cluster_size: u16,
-    max_frames: u32,
-    frame_delay_ms: u64,
+    duration: Duration,
+    frame_delay: Duration,
 }
 
 impl Game {
@@ -50,19 +99,19 @@ impl Game {
         height: u16,
         snowball_chance: f64,
         snowball_cluster_size: u16,
-        max_frames: u32,
-        frame_delay_ms: u64,
+        duration: Duration,
+        frame_delay_ms: Duration,
     ) -> Self {
         Self {
             objects: Vec::new(),
             rng: rand::thread_rng(),
-            frame_count: 0,
+            start_time: Instant::now(),
             width,
             height,
             snowball_chance,
             snowball_cluster_size,
-            max_frames,
-            frame_delay_ms,
+            duration,
+            frame_delay: frame_delay_ms,
         }
     }
 
@@ -107,12 +156,10 @@ impl Game {
             stdout.flush()?;
 
             // Sleep for animation
-            thread::sleep(Duration::from_millis(self.frame_delay_ms));
-
-            self.frame_count += 1;
+            thread::sleep(self.frame_delay);
 
             // Exit after some time (optional)
-            if self.frame_count >= self.max_frames {
+            if self.start_time.elapsed() >= self.duration {
                 break;
             }
         }
@@ -136,8 +183,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         height,
         args.snowball_chance,
         args.snowball_cluster_size,
-        args.max_frames,
-        args.frame_delay_ms,
+        args.duration,
+        Duration::from_millis((1000.0 / args.fps) as u64),
     );
     game.run(&mut stdout)?;
 
