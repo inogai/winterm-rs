@@ -1,5 +1,5 @@
-use rand::Rng;
 use super::entity::Entity;
+use rand::Rng;
 
 #[derive(Clone)]
 pub struct Snowball {
@@ -36,4 +36,3 @@ impl Entity for Snowball {
         self.y > height as f32
     }
 }
-

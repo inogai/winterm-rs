@@ -5,15 +5,12 @@ mod snowball;
 
 use args::Args;
 use clap::Parser;
-use game::Game;
 use crossterm::{
     cursor::{Hide, Show},
     execute,
 };
-use std::{
-    io::stdout,
-    time::Duration,
-};
+use game::Game;
+use std::{io::stdout, time::Duration};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut stdout = stdout();

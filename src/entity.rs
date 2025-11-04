@@ -1,8 +1,4 @@
-use crossterm::{
-    cursor::MoveTo,
-    execute,
-    style::Print,
-};
+use crossterm::{cursor::MoveTo, execute, style::Print};
 use std::io::Stdout;
 
 pub trait Entity {
@@ -19,4 +15,3 @@ pub trait Entity {
     }
     fn is_off_screen(&self, height: u16) -> bool;
 }
-

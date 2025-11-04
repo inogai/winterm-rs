@@ -68,4 +68,3 @@ pub struct Args {
     #[arg(long, short = 'i', value_parser=duration_parser, default_value="16ms")]
     pub spawn_interval: Duration,
 }
-
