@@ -13,6 +13,4 @@ rand_distr = "0.5.1"
 [dependencies.bevy]
 version = "0.17.2"
 default-features = false
-features = [
-  "std",            # Use the Rust standard library (important!)
-]
+features = ["std"]

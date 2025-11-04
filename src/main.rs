@@ -8,10 +8,12 @@ use crossterm::{
     cursor::{Hide, Show},
     event::{self, Event, KeyCode, KeyModifiers},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType},
+    terminal::{Clear, ClearType, disable_raw_mode, enable_raw_mode},
 };
-use std::{io::{Write, stdout}, num::NonZero};
-use std::time::{Duration, Instant};
+use std::{
+    io::{Write, stdout},
+    time::{Duration, Instant},
+};
 
 use crate::game::GameConfig;
 
@@ -31,8 +33,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Store configuration for the runner
     let duration = args.duration;
     let frame_delay = Duration::from_millis((1000.0 / args.fps) as u64);
-    
-    
 
     // Create the Bevy app with all systems
     let mut app = game::create_app(GameConfig::new(args, width, height));
@@ -41,32 +41,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     app.set_runner(move |mut app: App| {
         let mut term_stdout = std::io::stdout();
         let start_time = Instant::now();
-        
+
         loop {
             let frame_start = Instant::now();
-            
+
             // Check for keyboard input (Ctrl-C, q, or Esc to exit)
-            if event::poll(Duration::from_millis(0)).unwrap_or(false) {
-                if let Ok(Event::Key(key_event)) = event::read() {
-                    match key_event.code {
-                        KeyCode::Char('c') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
-                            break AppExit::Error(NonZero::new(1).unwrap());
-                        }
-                        KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => {
-                            break AppExit::Error(NonZero::new(1).unwrap());
-                        }
-                        _ => {}
+            if event::poll(Duration::ZERO).unwrap_or(false)
+                && let Ok(Event::Key(key_event)) = event::read()
+            {
+                match key_event.code {
+                    KeyCode::Char('c') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
+                        break AppExit::Success;
                     }
+                    KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => {
+                        break AppExit::Success;
+                    }
+                    _ => {}
                 }
             }
 
-            // Clear screen
+            // Clear screen and run frame
             let _ = execute!(term_stdout, Clear(ClearType::All));
-
-            // Run Bevy update to execute all systems
             app.update();
-
-            // Flush output
             let _ = term_stdout.flush();
 
             // Frame pacing - sleep for remaining time to maintain consistent frame rate
@@ -74,10 +70,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if frame_time < frame_delay {
                 std::thread::sleep(frame_delay - frame_time);
             }
-            
+
             // Exit after duration
             if start_time.elapsed() >= duration {
-                break AppExit::Success
+                break AppExit::Success;
             }
         }
     });
