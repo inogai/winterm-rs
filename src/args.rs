@@ -59,6 +59,10 @@ pub struct Args {
     #[arg(long, short = 's', default_value_t = 3)]
     pub snowball_cluster_size: u16,
 
+    #[arg(long, short = 'v', default_value_t = 0.5)]
+    // rows per frame
+    pub snowball_speed: f32,
+
     #[arg(long, short = 'd', value_parser=duration_parser, default_value="1d")]
     pub duration: Duration,
 

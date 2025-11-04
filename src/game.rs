@@ -19,6 +19,7 @@ pub struct Game {
     pub height: u16,
     snowball_chance: f64,
     snowball_cluster_size: u16,
+    pub snowball_speed: f32,
     duration: Duration,
     frame_delay: Duration,
     spawn_interval: Duration,
@@ -31,6 +32,7 @@ impl Game {
         height: u16,
         snowball_chance: f64,
         snowball_cluster_size: u16,
+        snowball_speed: f32,
         duration: Duration,
         frame_delay_ms: Duration,
         spawn_interval: Duration,
@@ -43,6 +45,7 @@ impl Game {
             height,
             snowball_chance,
             snowball_cluster_size,
+            snowball_speed,
             duration,
             frame_delay: frame_delay_ms,
             spawn_interval,
@@ -54,7 +57,8 @@ impl Game {
         if self.rng.random_bool(self.snowball_chance) {
             let count = self.rng.random_range(1..=self.snowball_cluster_size);
             for _ in 0..count {
-                self.objects.push(Box::new(Snowball::new(self.width)));
+                self.objects
+                    .push(Box::new(Snowball::new(self.width, self.snowball_speed)));
             }
         }
     }

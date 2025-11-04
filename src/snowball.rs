@@ -9,12 +9,12 @@ pub struct Snowball {
 }
 
 impl Snowball {
-    pub fn new(width: u16) -> Self {
+    pub fn new(width: u16, speed: f32) -> Self {
         let mut rng = rand::rng();
         Snowball {
             x: rng.random_range(0.0..width as f32),
             y: 0.0,
-            speed: rng.random_range(0.5..2.0),
+            speed,
         }
     }
 }

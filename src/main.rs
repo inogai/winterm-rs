@@ -28,6 +28,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         height,
         args.snowball_chance,
         args.snowball_cluster_size,
+        args.snowball_speed,
         args.duration,
         Duration::from_millis((1000.0 / args.fps) as u64),
         args.spawn_interval,
