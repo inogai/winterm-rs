@@ -9781,7 +9781,7 @@ rec {
       };
       "winterm-rs" = rec {
         crateName = "winterm-rs";
-        version = "0.1.1";
+        version = "0.2.0";
         edition = "2024";
         crateBin = [
           {
