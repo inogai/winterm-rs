@@ -1,8 +1,17 @@
 {
   description = "A Nix-flake-based Rust development environment";
 
+  nixConfig = {
+    extra-substituters = [
+      "https://cargo2nix.cachix.org"
+    ];
+    extra-trusted-public-keys = [
+      "cargo2nix.cachix.org-1:ge7JNQYaRs+DO1o50vOUxRqLVze6G2VpPTt8EAg/b50="
+    ];
+  };
+
   inputs = {
-    nixpkgs.url = "nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
 
   outputs =
@@ -49,15 +58,11 @@
         }
       );
 
+
       packages = forEachSupportedSystem (
         { pkgs }:
         {
-          default = pkgs.rustPlatform.buildRustPackage {
-            pname = "winterm-rs";
-            version = "0.1.0";
-            src = ./.;
-            cargoLock.lockFile = ./Cargo.lock;
-          };
+          default = (pkgs.callPackage ./Cargo.nix {}).rootCrate.build;
         }
       );
     };
