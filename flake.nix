@@ -1,69 +1,152 @@
 {
-  description = "A Nix-flake-based Rust development environment";
-
-  nixConfig = {
-    extra-substituters = [
-      "https://cargo2nix.cachix.org"
-    ];
-    extra-trusted-public-keys = [
-      "cargo2nix.cachix.org-1:ge7JNQYaRs+DO1o50vOUxRqLVze6G2VpPTt8EAg/b50="
-    ];
-  };
+  description = "Winterm-rs: A terminal-based winter scene animation";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+
+    crane.url = "github:ipetkov/crane";
+
+    flake-utils.url = "github:numtide/flake-utils";
+
+    advisory-db = {
+      url = "github:rustsec/advisory-db";
+      flake = false;
+    };
   };
 
   outputs =
-    { self, ... }@inputs:
+    {
+      self,
+      nixpkgs,
+      crane,
+      flake-utils,
+      advisory-db,
+      ...
+    }:
+    flake-utils.lib.eachDefaultSystem (
+      system:
+      let
+        pkgs = nixpkgs.legacyPackages.${system};
 
-    let
-      supportedSystems = [
-        "x86_64-linux"
-        "aarch64-linux"
-        "x86_64-darwin"
-        "aarch64-darwin"
-      ];
-      forEachSupportedSystem =
-        f:
-        inputs.nixpkgs.lib.genAttrs supportedSystems (
-          system:
-          f {
-            pkgs = import inputs.nixpkgs {
-              inherit system;
-            };
+        inherit (pkgs) lib;
+
+        craneLib = crane.mkLib pkgs;
+        src = craneLib.cleanCargoSource ./.;
+
+        # Common arguments can be set here to avoid repeating them later
+        commonArgs = {
+          inherit src;
+          strictDeps = true;
+
+          buildInputs = [
+            # Add additional build inputs here
+          ]
+          ++ lib.optionals pkgs.stdenv.isDarwin [
+            # Additional darwin specific inputs can be set here
+            pkgs.libiconv
+          ];
+
+          # Additional environment variables can be set directly
+          # MY_CUSTOM_VAR = "some value";
+        };
+
+        # Build *just* the cargo dependencies, so we can reuse
+        # all of that work (e.g. via cachix) when running in CI
+        cargoArtifacts = craneLib.buildDepsOnly commonArgs;
+
+        # Build the actual crate itself, reusing the dependency
+        # artifacts from above.
+        winterm-rs = craneLib.buildPackage (
+          commonArgs
+          // {
+            inherit cargoArtifacts;
+            # Disable tests for the main package since we run them separately
+            doCheck = false;
           }
         );
-    in
-    {
-      devShells = forEachSupportedSystem (
-        { pkgs }:
-        {
-          default = pkgs.mkShellNoCC {
-            packages = with pkgs; [
-              rustc
-              cargo
-              clippy
-              rustfmt
-              cargo-deny
-              cargo-edit
-              cargo-watch
-              rust-analyzer
-            ];
+      in
+      {
+        checks = {
+          # Build the crate as part of `nix flake check` for convenience
+          inherit winterm-rs;
 
-            env = {
-              RUST_SRC_PATH = "${pkgs.rustPlatform.rustLibSrc}";
-            };
+          # Run clippy (and deny all warnings) on the crate source,
+          # again, reusing the dependency artifacts from above.
+          #
+          # Note that this is done as a separate derivation so that
+          # we can block the CI if there are issues here, but not
+          # prevent downstream consumers from building our crate by itself.
+          winterm-rs-clippy = craneLib.cargoClippy (
+            commonArgs
+            // {
+              inherit cargoArtifacts;
+              cargoClippyExtraArgs = "--all-targets -- --deny warnings";
+            }
+          );
+
+          my-crate-doc = craneLib.cargoDoc (
+            commonArgs
+            // {
+              inherit cargoArtifacts;
+              # This can be commented out or tweaked as necessary, e.g. set to
+              # `--deny rustdoc::broken-intra-doc-links` to only enforce that lint
+              env.RUSTDOCFLAGS = "--deny warnings";
+            }
+          );
+
+          # Check formatting
+          winterm-rs-fmt = craneLib.cargoFmt {
+            inherit src;
           };
-        }
-      );
 
+          winterm-rs-toml-fmt = craneLib.taploFmt {
+            src = pkgs.lib.sources.sourceFilesBySuffices src [ ".toml" ];
+            # taplo arguments can be further customized below as needed
+            # taploExtraArgs = "--config ./taplo.toml";
+          };
 
-      packages = forEachSupportedSystem (
-        { pkgs }:
-        {
-          default = (pkgs.callPackage ./Cargo.nix {}).rootCrate.build;
-        }
-      );
-    };
+          # Audit dependencies
+          winterm-rs-audit = craneLib.cargoAudit {
+            inherit src advisory-db;
+          };
+
+          # Audit licenses
+          winterm-rs-deny = craneLib.cargoDeny {
+            inherit src;
+          };
+
+          # Run tests with cargo-nextest
+          winterm-rs-nextest = craneLib.cargoNextest (
+            commonArgs
+            // {
+              inherit cargoArtifacts;
+              partitions = 1;
+              partitionType = "count";
+              cargoNextestPartitionsExtraArgs = "--no-tests=pass";
+            }
+          );
+        };
+
+        packages = {
+          default = winterm-rs;
+        };
+
+        apps.default = flake-utils.lib.mkApp {
+          drv = winterm-rs;
+        };
+
+        devShells.default = craneLib.devShell {
+          # Inherit inputs from checks.
+          checks = self.checks.${system};
+
+          # Additional dev-shell environment variables can be set directly
+          # MY_CUSTOM_DEVELOPMENT_VAR = "something else";
+
+          # Extra inputs can be added here; cargo and rustc are provided by default.
+          packages = [
+            # pkgs.ripgrep
+          ];
+        };
+      }
+    );
 }
